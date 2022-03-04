@@ -1,0 +1,49 @@
+trigger:
+  branches:
+    include:
+    - main 
+  
+pool:
+  vmImage: ubuntu-latest  
+
+stages:
+
+
+- stage: BUILD
+  jobs:
+  - job: BUILD_AND_SCAN_CONTAINER_IMAGE
+    steps:
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          docker build -t myapp:$(build.buildid) ./sprint-01/src/
+          echo "##vso[task.setvariable variable=imagesha;isOutput=true]$(docker images --no-trunc --quiet myapp)"
+          echo ${{ variables.imagesha }}
+
+    - task: UniversalPackages@0
+      inputs:
+        command: 'download'
+        downloadDirectory: '$(System.DefaultWorkingDirectory)'
+        feedsToUse: 'internal'
+        vstsFeed: 'e19a49e7-5eae-4186-ab59-41190cb528e2'
+        vstsFeedPackage: '5eac8bc8-e21a-473a-844c-97d9a0f71e3f'
+        vstsPackageVersion: '0.0.2108525'
+
+    - task: Bash@3
+      inputs:
+        targetType: 'inline'
+        script: |
+          chmod +x twistcli
+          ./twistcli images scan --details --address $(CONSOLE) -u $(ACCESSKEY) -p $(SECRETKEY) myapp:$(build.buildid)
+
+- stage: DEV
+  jobs:
+  - deployment: DEV
+    environment: dev
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - script: echo push
